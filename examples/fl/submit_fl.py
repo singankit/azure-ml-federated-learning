@@ -49,12 +49,12 @@ def get_silo_configs():
                 "raw_train_data": Input(
                     type=AssetTypes.URI_FILE,
                     mode="download",
-                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
+                    path="azureml://datastores/workspaceblobstorewesteurope/paths/trainingdata/train.csv"
                 ),
                 "raw_test_data": Input(
                     type=AssetTypes.URI_FILE,
                     mode="download",
-                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/t10k.csv",
+                    path="azureml://datastores/workspaceblobstorewesteurope/paths/testdata/t10k.csv",
                 )},
         },
         {
@@ -65,12 +65,12 @@ def get_silo_configs():
                 "raw_train_data": Input(
                     type=AssetTypes.URI_FILE,
                     mode="download",
-                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
+                    path="azureml://datastores/workspaceblobstoreaustraliaeast/paths/trainingdata/train.csv",
                 ),
                 "raw_test_data": Input(
                     type=AssetTypes.URI_FILE,
                     mode="download",
-                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/t10k.csv",
+                    path="azureml://datastores/workspaceblobstoreaustraliaeast/paths/testdata/t10k.csv",
                 )},
         }
     ]
