@@ -217,7 +217,6 @@ def main():
     pipeline_fl = scatter_gather_iteration(
         scatter=silo_scatter_subgraph,
         gather=aggregate_models,
-        # gather=gather_pipeline,
         scatter_strategy=silo_configs,
         gather_strategy=gather_config,
         scatter_constant_inputs={"lr": 0.01, "batch_size": 32, "epochs": 3},
@@ -234,7 +233,6 @@ def main():
         credential=DefaultAzureCredential()
     )
 
-    # pipeline_fl.settings.default_compute = "cpu-cluster"
     ml_client.jobs.create_or_update(pipeline_fl)
 
 

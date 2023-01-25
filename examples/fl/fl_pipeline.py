@@ -90,22 +90,12 @@ def scatter_gather_iteration(
         # handle it appropriately
         gather_instance.compute = gather_strategy["compute"]
 
-        increase_iteration_number_component_instance = increase_iteration_number_component(
-            iteration_num=iteration_num
-        )
-        increase_iteration_number_component_instance.compute = silo_config["compute"]
-
-        true_output_component_instance = true_output_component()
-        true_output_component_instance.compute = silo_config["compute"]
-
         return {
             # Assuming gather should return aggregated_model as output(Need to change in this component)
             "model": gather_instance.outputs.aggregated_output,
-            "next_iteration_num": increase_iteration_number_component_instance.outputs.output,
-            "early_terminate": true_output_component_instance.outputs.output,
         }
 
-    @pipeline(name="FL Pipeline with Do while")
+    @pipeline(name="FL Pipeline")
     def fl_pipeline():
         checkpoint = None
         for i in range(0, iterations):
