@@ -4,6 +4,7 @@ os.environ["AZURE_ML_CLI_PRIVATE_FEATURES_ENABLED"] = "True"
 
 from azure.ai.ml import Input, load_component
 from azure.ai.ml.constants import AssetTypes
+from _helper import increase_iteration_number_component, true_output_component, aggregate_models
 
 # path to the components
 from azure.ai.ml.dsl import pipeline
@@ -34,6 +35,7 @@ aggregate_component = load_component(
     source=os.path.join(COMPONENTS_FOLDER, "aggregatemodelweights", "spec.yaml")
 )
 
+
 # evaluation_component = load_component(
 #     source=os.path.join(COMPONENTS_FOLDER, "evaluate", "spec.yaml")
 # )
@@ -49,12 +51,32 @@ def get_silo_configs():
                 "raw_train_data": Input(
                     type=AssetTypes.URI_FILE,
                     mode="download",
-                    path="azureml://datastores/workspaceblobstorewesteurope/paths/trainingdata/train.csv"
+                    # path="azureml://datastores/workspaceblobstorewesteurope/paths/trainingdata/train.csv"
+                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
                 ),
                 "raw_test_data": Input(
                     type=AssetTypes.URI_FILE,
                     mode="download",
-                    path="azureml://datastores/workspaceblobstorewesteurope/paths/testdata/t10k.csv",
+                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
+                    # path="azureml://datastores/workspaceblobstorewesteurope/paths/testdata/t10k.csv",
+                )},
+        },
+        {
+            "compute": "cpu-cluster-westeurope",
+            "datastore": "workspaceblobstorewesteurope",
+            "inputs": {
+                # feeds into the user defined inputs
+                "raw_train_data": Input(
+                    type=AssetTypes.URI_FILE,
+                    mode="download",
+                    # path="azureml://datastores/workspaceblobstorewesteurope/paths/trainingdata/train.csv"
+                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
+                ),
+                "raw_test_data": Input(
+                    type=AssetTypes.URI_FILE,
+                    mode="download",
+                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
+                    # path="azureml://datastores/workspaceblobstorewesteurope/paths/testdata/t10k.csv",
                 )},
         },
         {
@@ -65,12 +87,15 @@ def get_silo_configs():
                 "raw_train_data": Input(
                     type=AssetTypes.URI_FILE,
                     mode="download",
-                    path="azureml://datastores/workspaceblobstoreaustraliaeast/paths/trainingdata/train.csv",
+                    # path="azureml://datastores/workspaceblobstoreaustraliaeast/paths/trainingdata/train.csv",
+                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
                 ),
+
                 "raw_test_data": Input(
                     type=AssetTypes.URI_FILE,
                     mode="download",
-                    path="azureml://datastores/workspaceblobstoreaustraliaeast/paths/testdata/t10k.csv",
+                    # path="azureml://datastores/workspaceblobstoreaustraliaeast/paths/testdata/t10k.csv",
+                    path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
                 )},
         }
     ]
@@ -191,7 +216,7 @@ def main():
 
     pipeline_fl = scatter_gather_iteration(
         scatter=silo_scatter_subgraph,
-        gather=aggregate_component,
+        gather=aggregate_models,
         # gather=gather_pipeline,
         scatter_strategy=silo_configs,
         gather_strategy=gather_config,
