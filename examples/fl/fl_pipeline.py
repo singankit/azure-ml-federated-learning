@@ -35,7 +35,8 @@ def scatter_gather_iteration(
         scatter_constant_inputs=None,
 ):
     @pipeline(name="Scatter Gather Iteration")
-    def scatter_gather_iter(iteration_num: int, checkpoint: Input(type="uri_folder", optional=True)):
+    def scatter_gather_iter(**kwargs):
+        iteration_num = kwargs.pop("iteration_num")
         gather_inputs = {}
         for silo_index in range(1, len(scatter_strategy) + 1):
             silo_config = scatter_strategy[silo_index - 1]
@@ -45,7 +46,7 @@ def scatter_gather_iteration(
                 **{"scatter_compute": silo_config["compute"]}
             }
 
-            scatter_gather = scatter(**scatter_input, iteration_num=iteration_num, checkpoint=checkpoint)
+            scatter_gather = scatter(**scatter_input, iteration_num=iteration_num, **kwargs)
             # scatter_gather = scatter(**scatter_input, checkpoint=checkpoint)
 
             # TODO: Assumption that scatter subgraph produces output with name "model"
@@ -69,7 +70,9 @@ def scatter_gather_iteration(
 
             # TODO: scatter_to_gather_map is user provided and no good way to know what inputs needed
             # What is the expectation for it ?
-            gather_inputs[scatter_to_gather_map("model", silo_index)] = scatter_gather.outputs.model
+            for scatter_output_name, gather_input_name in scatter_to_gather_map.items():
+                gather_inputs[gather_input_name(scatter_output_name, silo_index)] = scatter_gather.outputs[scatter_output_name]
+            # gather_inputs[scatter_to_gather_map("model", silo_index)] = scatter_gather.outputs.model
 
         gather_instance = gather(**gather_inputs)
 
@@ -90,17 +93,27 @@ def scatter_gather_iteration(
         # handle it appropriately
         gather_instance.compute = gather_strategy["compute"]
 
-        return {
-            # Assuming gather should return aggregated_model as output(Need to change in this component)
-            "model": gather_instance.outputs.aggregated_output,
-        }
+        # return {
+        #     # Assuming gather should return aggregated_model as output(Need to change in this component)
+        #     "model": gather_instance.outputs.aggregated_output,
+        # }
+
+        return gather_instance.outputs
 
     @pipeline(name="FL Pipeline")
     def fl_pipeline():
         checkpoint = None
+        scatter_inputs = {}
+
+        def get_scatter_inputs(gather_to_scatter_map, gather_iteration_body):
+            scatter_inputs = {}
+            for gather_output_name, scatter_input_name in gather_to_scatter_map.items():
+                scatter_inputs[scatter_input_name] = gather_iteration_body.outputs[gather_output_name]
+            return scatter_inputs
+
         for i in range(0, iterations):
-            iteration_body = scatter_gather_iter(iteration_num=i, checkpoint=checkpoint)
-            iteration_body.outputs.model = Output(
+            iteration_body = scatter_gather_iter(iteration_num=i, **scatter_inputs)
+            iteration_body.outputs.aggregated_output = Output(
                 type=AssetTypes.URI_FOLDER,
                 mode="mount",
                 path=custom_fl_data_path(
@@ -109,20 +122,28 @@ def scatter_gather_iteration(
                     iteration_num=i
                 ),
             )
-            checkpoint = iteration_body.outputs.model
 
-        return {
-            "final_model": iteration_body.outputs.model,
-        }
+            # Check output type
+
+            scatter_inputs = get_scatter_inputs(gather_to_scatter_map, iteration_body)
+
+            # checkpoint = iteration_body.outputs.model
+
+        # return {
+        #     "final_model": iteration_body.outputs.model,
+        # }
+        return iteration_body.outputs
 
     fl_pipeline_instance = fl_pipeline()
-    fl_pipeline_instance.outputs.final_model = Output(
-        type=AssetTypes.URI_FOLDER,
-        mode="mount",
-        path=custom_fl_data_path(
-            gather_strategy["datastore"],
-            f"final_model",
-        ),
-    )
+
+    # set this based on output type as uri_folder
+    # fl_pipeline_instance.outputs.final_model = Output(
+    #     type=AssetTypes.URI_FOLDER,
+    #     mode="mount",
+    #     path=custom_fl_data_path(
+    #         gather_strategy["datastore"],
+    #         f"final_model",
+    #     ),
+    # )
 
     return fl_pipeline_instance

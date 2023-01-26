@@ -220,7 +220,10 @@ def main():
         scatter_strategy=silo_configs,
         gather_strategy=gather_config,
         scatter_constant_inputs={"lr": 0.01, "batch_size": 32, "epochs": 3},
-        scatter_to_gather_map=lambda output_name, silo_index: f"input_silo_{silo_index}",
+        # scatter_to_gather_map=lambda output_name, silo_index: f"input_silo_{silo_index}",
+        # Check with Jeff about this
+        scatter_to_gather_map={"model": (lambda output_name, silo_index: f"input_silo_{silo_index}")},
+        gather_to_scatter_map={"aggregated_output": "checkpoint"},
         iterations=2
     )
 
