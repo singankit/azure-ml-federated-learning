@@ -197,7 +197,7 @@ def main():
         gather_strategy=gather_config,
         scatter_constant_inputs={"lr": 0.01, "batch_size": 32, "epochs": 3},
         scatter_to_gather_map=lambda output_name, silo_index: f"input_silo_{silo_index}",
-        iterations=2
+        iterations=2,
     )
 
     from azure.ai.ml import MLClient

@@ -9,12 +9,12 @@ from azure.ai.ml.constants import AssetTypes
 from azure.ai.ml.dsl import pipeline
 
 COMPONENTS_FOLDER = os.path.join(
-    os.path.dirname(__file__), "..", "components", "HELLOWORLD"
+    os.path.dirname(__file__), "..", "..", "components", "HELLOWORLD"
 )
 
 # path to the shared components
 SHARED_COMPONENTS_FOLDER = os.path.join(
-    os.path.dirname(__file__), "..", "components", "utils"
+    os.path.dirname(__file__), "..", "..", "components", "utils"
 )
 
 ####################################
@@ -213,6 +213,38 @@ def main():
     gather_config = get_gather_config()
     from fl_pipeline import scatter_gather_iteration
     from _helper import aggregate_models
+    from azure.ai.ml.dsl._fl_scatter_gather_node import fl_scatter_gather
+    from azure.ai.ml.entities._assets.federated_learning_silo import FederatedLearningSilo
+    from azure.ai.ml.entities._assets import Data
+
+    silo1 = FederatedLearningSilo(
+        compute="cpu-cluster-westeurope",
+        datastore="workspaceblobstorewesteurope",
+        inputs={
+            # feeds into the user defined inputs
+            "raw_train_data": Input(
+                type=AssetTypes.URI_FILE,
+                mode="download",
+                # path="azureml://datastores/workspaceblobstorewesteurope/paths/trainingdata/train.csv"
+                path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
+            ),
+            "raw_test_data": Input(
+                type=AssetTypes.URI_FILE,
+                mode="download",
+                path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
+                # path="azureml://datastores/workspaceblobstorewesteurope/paths/testdata/t10k.csv",
+            )}
+    )
+
+    fl_scatter_gather(
+        silo_configs=[silo1],
+        aggregation_config=gather_config,
+        silo_component=silo_scatter_subgraph,
+        aggregate_component=aggregate_models,
+        silo_to_aggregation_argument_map={"model": (lambda output_name, silo_index: f"input_silo_{silo_index}")},
+        max_iterations=1,
+        shared_silo_kwargs={"lr": 0.01, "batch_size": 32, "epochs": 3}
+    )
 
     pipeline_fl = scatter_gather_iteration(
         scatter=silo_scatter_subgraph,
@@ -239,13 +271,13 @@ def main():
     ml_client.jobs.create_or_update(pipeline_fl)
 
 
-def test_save_mltable():
-    from _helper import save_mltable_yaml
-    paths = []
-    paths.append({"folder": "blah"})
-    paths.append({"folder": "blah1"})
-    paths.append({"folder": "blah2"})
-    save_mltable_yaml(".", paths)
+# def test_save_mltable():
+#     from _helper import save_mltable_yaml
+#     paths = []
+#     paths.append({"folder": "blah"})
+#     paths.append({"folder": "blah1"})
+#     paths.append({"folder": "blah2"})
+#     save_mltable_yaml(".", paths)
 
 
 if __name__ == "__main__":

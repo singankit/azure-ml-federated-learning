@@ -178,7 +178,7 @@ def scatter_gather_iteration(
             body=iteration_body,
             mapping=do_while_mapping,
             max_iteration_count=2,
-            condition=iteration_body.outputs.early_terminate,  # do_while supports early terminate
+            condition=iteration_body.outputs.early_terminate, # do_while supports early terminate
         )
 
         return {
