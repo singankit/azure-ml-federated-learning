@@ -37,7 +37,9 @@ def scatter_gather_iteration(
     scatter_constant_inputs=None,
 ):
     @pipeline(name="Scatter Gather Iteration")
-    def scatter_gather_iter(iteration_num: int, checkpoint: Input(type="uri_folder", optional=True)):
+    # def scatter_gather_iter(iteration_num: int, checkpoint: Input(type="uri_folder", optional=True)):
+    def scatter_gather_iter(**kwargs):
+        iteration_num = kwargs.pop("iteration_num")
         gather_inputs = {}
         for silo_index in range(1, len(scatter_strategy) + 1):
             silo_config = scatter_strategy[silo_index - 1]
@@ -47,8 +49,9 @@ def scatter_gather_iteration(
                 **{"scatter_compute": silo_config["compute"]}
             }
 
-            scatter_gather = scatter(**scatter_input, iteration_num=iteration_num, checkpoint=checkpoint)
+            # scatter_gather = scatter(**scatter_input, iteration_num=iteration_num, checkpoint=checkpoint)
             # scatter_gather = scatter(**scatter_input, checkpoint=checkpoint)
+            scatter_gather = scatter(**scatter_input, iteration_num=iteration_num, **kwargs)
 
             # TODO: Assumption that scatter subgraph produces output with name "model"
             scatter_gather.outputs.model = Output(
