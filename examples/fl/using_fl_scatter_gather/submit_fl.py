@@ -106,20 +106,20 @@ def get_gather_config():
     return {
         "compute": "cpu-cluster-1",
         "datastore": "flgathermodels2",
-        }
+    }
 
 
 @pipeline
 def gather_pipeline(
-    input_silo_1: Input,
-    input_silo_2: Input,
+        input_silo_1: Input,
+        input_silo_2: Input,
 ):
     gather_test = aggregate_component(
         input_silo_1=input_silo_1,
         input_silo_2=input_silo_2)
     return {
-            "aggregated_output": gather_test.outputs.aggregated_output
-        }
+        "aggregated_output": gather_test.outputs.aggregated_output
+    }
 
 
 @pipeline(
@@ -127,23 +127,23 @@ def gather_pipeline(
     description="It includes preprocessing, training and local evaluation",
 )
 def silo_scatter_subgraph(
-    # user defined inputs
-    raw_train_data: Input,
-    raw_test_data: Input,
-    # raw_eval_data: Input,
-    # user defined accumulator
-    checkpoint: Input(optional=True),
-    # RESERVED arguments
-    # we propose that the SDK provides those arguments to the subgraph
-    # to help with building the graph
-    scatter_compute: str,
-    # scatter_datastore: str,
-    # gather_datastore: str,
-    iteration_num: int,
-    # user defined inputs
-    lr: float = 0.01,
-    epochs: int = 3,
-    batch_size: int = 64,
+        # user defined inputs
+        raw_train_data: Input,
+        raw_test_data: Input,
+        # raw_eval_data: Input,
+        # user defined accumulator
+        checkpoint: Input(optional=True),
+        # RESERVED arguments
+        # we propose that the SDK provides those arguments to the subgraph
+        # to help with building the graph
+        scatter_compute: str = "test",
+        # scatter_datastore: str,
+        # gather_datastore: str,
+        iteration_num: int = 0,
+        # user defined inputs
+        lr: float = 0.01,
+        epochs: int = 3,
+        batch_size: int = 64,
 ):
     """Create silo/training subgraph.
     Args:
@@ -212,7 +212,7 @@ def main():
     silo_configs = get_silo_configs()
     gather_config = get_gather_config()
     from fl_pipeline import scatter_gather_iteration
-    from _helper import aggregate_models
+    from _helper import aggregator
     from azure.ai.ml.dsl._fl_scatter_gather_node import fl_scatter_gather
     from azure.ai.ml.entities._assets.federated_learning_silo import FederatedLearningSilo
     from azure.ai.ml.entities._assets import Data
@@ -236,28 +236,60 @@ def main():
             )}
     )
 
-    fl_scatter_gather(
-        silo_configs=[silo1],
-        aggregation_config=gather_config,
-        silo_component=silo_scatter_subgraph,
-        aggregate_component=aggregate_models,
-        silo_to_aggregation_argument_map={"model": (lambda output_name, silo_index: f"input_silo_{silo_index}")},
-        max_iterations=1,
-        shared_silo_kwargs={"lr": 0.01, "batch_size": 32, "epochs": 3}
+    silo2 = FederatedLearningSilo(
+        compute="cpu-cluster-australiaeast",
+        datastore="workspaceblobstoreaustraliaeast",
+        inputs={
+            # feeds into the user defined inputs
+            "raw_train_data": Input(
+                type=AssetTypes.URI_FILE,
+                mode="download",
+                # path="azureml://datastores/workspaceblobstorewesteurope/paths/trainingdata/train.csv"
+                path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
+            ),
+            "raw_test_data": Input(
+                type=AssetTypes.URI_FILE,
+                mode="download",
+                path="https://azureopendatastorage.blob.core.windows.net/mnist/processed/train.csv",
+                # path="azureml://datastores/workspaceblobstorewesteurope/paths/testdata/t10k.csv",
+            )}
     )
 
-    pipeline_fl = scatter_gather_iteration(
-        scatter=silo_scatter_subgraph,
-        gather=aggregate_models,
-        scatter_strategy=silo_configs,
-        gather_strategy=gather_config,
-        scatter_constant_inputs={"lr": 0.01, "batch_size": 32, "epochs": 3},
-        # scatter_to_gather_map=lambda output_name, silo_index: f"input_silo_{silo_index}",
-        # Check with Jeff about this
-        scatter_to_gather_map={"model": (lambda output_name, silo_index: f"input_silo_{silo_index}")},
-        gather_to_scatter_map={"final_model": "checkpoint"},
-        iterations=2
+    agg_config = FederatedLearningSilo(
+        compute="cpu-cluster-1",
+        datastore="flgathermodels2",
+        inputs=None,
     )
+
+    @pipeline(name="Test FL Node")
+    def test_fl():
+        fl_scatter_gather_instance = fl_scatter_gather(
+            silo_configs=[silo1, silo2],
+            aggregation_config=agg_config,
+            silo_component=silo_scatter_subgraph,
+            aggregation_component=aggregator,
+            aggregation_to_silo_argument_map={"final_model": "checkpoint"},
+            # silo_to_aggregation_argument_map={"model": (lambda output_name, silo_index: f"input_silo_{silo_index}")},
+            max_iterations=2,
+            shared_silo_kwargs={"lr": 0.01, "batch_size": 32, "epochs": 3}
+        )
+
+        return fl_scatter_gather_instance.outputs
+
+    test_fl_instance = test_fl()
+
+    # pipeline_fl = scatter_gather_iteration(
+    #     scatter=silo_scatter_subgraph,
+    #     gather=aggregate_models,
+    #     scatter_strategy=silo_configs,
+    #     gather_strategy=gather_config,
+    #     scatter_constant_inputs={"lr": 0.01, "batch_size": 32, "epochs": 3},
+    #     # scatter_to_gather_map=lambda output_name, silo_index: f"input_silo_{silo_index}",
+    #     # Check with Jeff about this
+    #     scatter_to_gather_map={"model": (lambda output_name, silo_index: f"input_silo_{silo_index}")},
+    #     gather_to_scatter_map={"final_model": "checkpoint"},
+    #     iterations=2
+    # )
 
     from azure.ai.ml import MLClient
     from azure.identity import DefaultAzureCredential
@@ -268,18 +300,45 @@ def main():
         credential=DefaultAzureCredential()
     )
 
-    ml_client.jobs.create_or_update(pipeline_fl)
+    ml_client.jobs.create_or_update(test_fl_instance)
 
 
-# def test_save_mltable():
-#     from _helper import save_mltable_yaml
-#     paths = []
-#     paths.append({"folder": "blah"})
-#     paths.append({"folder": "blah1"})
-#     paths.append({"folder": "blah2"})
-#     save_mltable_yaml(".", paths)
+def test_parallel_for():
+    from ._helper import increase_iteration_number_component
+    from azure.ai.ml.dsl._parallel_for import parallel_for
+
+    body = increase_iteration_number_component(iteration_num=0)
+    body.environment_variables.update({"AZURE_ML_CLI_PRIVATE_FEATURES_ENABLED": "true"})
+    print("env var AZURE_ML_CLI_PRIVATE_FEATURES_ENABLED is : ")
+    print(os.environ["AZURE_ML_CLI_PRIVATE_FEATURES_ENABLED"])
+
+    @pipeline()
+    def test_parallel_for_output():
+        test_node = parallel_for(
+            body=body,
+            items=[{"iteration_num": 0}, {"iteration_num": 1}, {"iteration_num": 2}]
+        )
+
+        return test_node.outputs
+
+    from azure.ai.ml import MLClient
+    from azure.identity import DefaultAzureCredential
+    ml_client = MLClient(
+        subscription_id="b17253fa-f327-42d6-9686-f3e553e24763",
+        resource_group_name="anksing-rg",
+        workspace_name="anksing-wcus",
+        credential=DefaultAzureCredential()
+    )
+    print("env var AZURE_ML_CLI_PRIVATE_FEATURES_ENABLED is : ")
+    print(os.environ["AZURE_ML_CLI_PRIVATE_FEATURES_ENABLED"])
+    ml_client.jobs.create_or_update(test_parallel_for_output())
 
 
 if __name__ == "__main__":
     # test_save_mltable()
-    main()
+    import os
+
+    os.environ["AZURE_ML_CLI_PRIVATE_FEATURES_ENABLED"] = "True"
+
+    test_parallel_for()
+    # main()

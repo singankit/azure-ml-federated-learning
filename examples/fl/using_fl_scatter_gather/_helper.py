@@ -68,11 +68,11 @@ def get_model_locations(aggregated_model):
 
 
 @command_component
-def aggregator(aggregated_model: Input(type="mltable"), final_model: Output, **kwargs):
-    print(aggregated_model)
+def aggregator(model: Input(type="mltable"), final_model: Output, **kwargs):
+    print(model)
     import os
-    print(os.listdir(aggregated_model))
-    models_location = get_model_locations(aggregated_model)
+    print(os.listdir(model))
+    models_location = get_model_locations(model)
     print("Model location is {}".format(models_location))
 
     for silo_num in os.listdir(models_location):
@@ -92,7 +92,21 @@ def aggregator(aggregated_model: Input(type="mltable"), final_model: Output, **k
                     pathlib.Path.joinpath(Path(final_model), "{}_{}".format(silo_num, iteration_num))
                 )
 
+
+@command_component()
+def aggregator_primitive(aggregated_output: Output(type="string"), **kwargs):
+    for input in kwargs:
+        print(input)
+
+
     # print(f"Writing output to {final_model}/final_model.txt")
     # import os
     # with open(os.path.join(final_model, "final_model.txt"), "w") as f:
     #     f.write("Final Model Hello World!")
+
+
+@command_component()
+def increase_iteration_number_component(
+    iteration_num: int,
+) -> Output(type="integer"):
+    return iteration_num + 1
